@@ -1,0 +1,151 @@
+import { useState, useEffect } from 'react';
+import './App.css';
+import { storage } from './firebaseConfig';
+import { ref, uploadBytes, listAll, getDownloadURL } from 'firebase/storage';
+//import JSZip from 'jszip';
+//import { saveAs } from 'file-saver';
+
+function App() {
+  const [file, setFile] = useState(null);
+  const [images, setImages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  //const [selectedImages, setSelectedImages] = useState([]);
+
+  const fetchImages = async () => {
+    const listRef = ref(storage, 'images/');
+    const res = await listAll(listRef);
+    const urls = await Promise.all(res.items.map(item => getDownloadURL(item)));
+    setImages(urls);
+  };
+
+  useEffect(() => {
+    fetchImages();
+  }, []);
+
+  const handleUpload = () => {
+    if (!file) {
+      alert('Please select a file first!');
+      return;
+    }
+
+    const fileArray = Array.from(file);
+    setLoading(true);
+
+    const uploadPromises = fileArray.map(fileItem => {
+      const storageRef = ref(storage, `images/${fileItem.name}`);
+      return uploadBytes(storageRef, fileItem);
+    });
+
+    Promise.all(uploadPromises).then(() => {
+      alert('All files uploaded successfully!');
+      fetchImages();
+      setLoading(false);
+    }).catch((error) => {
+      alert('Error uploading files!');
+      setLoading(false);
+    });
+  };
+
+  /*const toggleSelectImage = (url) => {
+    setSelectedImages((prevSelected) => {
+      if (prevSelected.includes(url)) {
+        return prevSelected.filter((image) => image !== url);
+      } else {
+        return [...prevSelected, url];
+      }
+    });
+  };*/
+  /*const downloadImage = (url, filename) => {
+    fetch(url)
+      .then(response => response.blob())
+      .then(blob => {
+        saveAs(blob, filename);
+      })
+      .catch(error => console.error('Error downloading image:', error));
+  };
+  */
+  /*const handleDownload = () => {
+    if (selectedImages.length === 0) {
+      alert('Please select images to download!');
+      return;
+    }
+  
+    setLoading(true);
+  
+    selectedImages.forEach((url, index) => {
+      const nameFromUrl = url.split('/').pop().split('?')[0];
+      const filename = nameFromUrl || `image-${index}.jpg`;
+      downloadImage(url, filename);
+    });
+  
+    setLoading(false);
+  };*/
+  /*const handleDownloadZip = async () => {
+    if (selectedImages.length === 0) {
+      alert('Please select images to download!');
+      return;
+    }
+  
+    setLoading(true);
+  
+    const zip = new JSZip();
+    const folder = zip.folder('images');
+  
+    for (let i = 0; i < selectedImages.length; i++) {
+      const url = selectedImages[i];
+      const name = url.split('/').pop().split('?')[0] || `image-${i}.jpg`;
+  
+      try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        folder.file(name, blob);
+      } catch (error) {
+        console.error('Error fetching image:', url, error);
+      }
+    }
+  
+    zip.generateAsync({ type: 'blob' }).then((zipFile) => {
+      saveAs(zipFile, 'imagenes_boda.zip');
+      setLoading(false);
+    }).catch(error => {
+      console.error('Error generating zip:', error);
+      setLoading(false);
+    });
+  };
+*/
+  return (
+    <>
+      <p>Boda Nuria Y Jorge</p>
+      <div>
+        <input type="file" onChange={(e) => setFile(e.target.files)} multiple />
+        <button onClick={handleUpload}>Subir fotos</button>
+        {/*<button onClick={handleDownload}>Download Selected Images</button>
+        <button onClick={handleDownloadZip}>Download Selected as ZIP</button>*/}
+      </div>
+
+      {loading && (
+        <div className="spinner-container">
+          <div className="spinner"></div>
+        </div>
+      )}
+
+      <div className="gallery-container">
+        {images.map((url, index) => (
+         <div
+         key={index}
+         className="gallery-item"
+       >
+       
+            <img
+              src={url}
+              alt={`Uploaded ${index}`}
+              className="gallery-image"
+            />
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+export default App;
