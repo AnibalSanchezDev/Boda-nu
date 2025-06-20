@@ -9,7 +9,14 @@ const path = require('path');
 const app = express();
 const upload = multer({ dest: 'uploads/' });
 
-app.use(cors());
+const corsOptions = {
+  origin: 'https://piso-3f93b.web.app', // o '*'
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 
 // Configuración de Google Drive
@@ -18,7 +25,7 @@ const auth = new google.auth.GoogleAuth({
   scopes: ['https://www.googleapis.com/auth/drive.file'],
 });
 
-app.post('/upload', upload.single('file'), async (req, res) => {
+app.post('/upload', upload.single('image'), async (req, res) => {
     try {
       const driveService = google.drive({ version: 'v3', auth: await auth.getClient() });
   

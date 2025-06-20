@@ -9,75 +9,99 @@ function App() {
   const [loading, setLoading] = useState(false);
 
   const fetchImages = async () => {
-    const listRef = ref(storage, 'images/');
-    const res = await listAll(listRef);
-    const urls = await Promise.all(res.items.map(item => getDownloadURL(item)));
-    setImages(urls);
+    try {
+      const listRef = ref(storage, 'images/');
+      const res = await listAll(listRef);
+      const urls = await Promise.all(res.items.map(item => getDownloadURL(item)));
+      setImages(urls);
+    } catch (error) {
+      console.error("Error fetching images from Firebase Storage:", error);
+    }
   };
 
   useEffect(() => {
     fetchImages();
   }, []);
 
-  const handleUpload = () => {
-    if (!file) {
-      alert('Please select a file first!');
+  const handleUpload = async () => { // Usar async/await para mejor control
+    if (!file || file.length === 0) {
+      alert('Please select files first!');
       return;
     }
 
-    const fileArray = Array.from(file);
     setLoading(true);
+    const fileArray = Array.from(file);
+    const successfulUploads = [];
+    const failedUploads = [];
 
-    const uploadPromises = fileArray.map(fileItem => {
-      const storageRef = ref(storage, `images/${fileItem.name}`);
-      return uploadBytes(storageRef, fileItem);
-    });
+    for (const fileItem of fileArray) {
+      try {
+        // Subir a Firebase Storage
+        const storageRef = ref(storage, `images/${fileItem.name}`);
+        await uploadBytes(storageRef, fileItem);
+        console.log(`Uploaded ${fileItem.name} to Firebase Storage.`);
 
-    Promise.all(uploadPromises).then(() => {
-      Promise.all(fileArray.map(fileItem => uploadToDrive(fileItem)))
-      .then(() => {
-        alert('All files uploaded successfully to Firebase and Google Drive!');
-        fetchImages();
-        setLoading(false);
-      })
-      .catch((error) => {
-        alert('Error uploading files to Google Drive!');
-        setLoading(false);
-      });
-  }).catch((error) => {
-    alert('Error uploading files to Firebase!');
+        // Subir a Google Drive
+        await uploadToDrive(fileItem);
+        console.log(`Uploaded ${fileItem.name} to Google Drive.`);
+        successfulUploads.push(fileItem.name);
+
+      } catch (error) {
+        console.error(`Error uploading ${fileItem.name}:`, error);
+        failedUploads.push(fileItem.name);
+      }
+    }
+
     setLoading(false);
-  });
-};
+
+    if (successfulUploads.length > 0) {
+      alert(`Successfully uploaded ${successfulUploads.length} files: ${successfulUploads.join(', ')}`);
+    }
+    if (failedUploads.length > 0) {
+      alert(`Failed to upload ${failedUploads.length} files: ${failedUploads.join(', ')}. Check console for details.`);
+    }
+
+    fetchImages(); // Actualizar la lista de imágenes después de las subidas
+  };
 
   const uploadToDrive = async (fileItem) => {
     const formData = new FormData();
-    formData.append('file', fileItem);
-  
+    formData.append('image', fileItem, fileItem.name); // Asegúrate que 'image' coincide con upload.single('image')
+    console.log('Enviando archivo a Drive:', fileItem.name);
+
     try {
-      const res = await fetch('http://localhost:3001/upload', {
+      const res = await fetch('https://us-central1-piso-3f93b.cloudfunctions.net/api/upload', {
         method: 'POST',
         body: formData,
+        // No Content-Type header needed for FormData; fetch sets it automatically
       });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`HTTP ${res.status} - ${errText}`);
+      }
       const data = await res.json();
       console.log('Imagen subida a Google Drive. ID:', data.fileId);
     } catch (error) {
       console.error('Error subiendo a Drive:', error);
+      throw error; // Re-throw para que handleUpload pueda capturarlo
     }
   };
 
   return (
     <>
-      <p>Boda Nuria Y Jorge</p>
+      <p>Boda Nuria Y</p>
       <div>
         <input type="file" onChange={(e) => setFile(e.target.files)} multiple />
-        <button onClick={handleUpload}>Subir fotos</button>
+        <button onClick={handleUpload} disabled={loading}>
+          {loading ? 'Subiendo...' : 'Subir fotos'}
+        </button>
         <button
-    onClick={() => window.open('https://drive.google.com/drive/folders/1VtAO0H7nAbPM_NxxIvt54PYEFFC8NbXL?usp=sharing', '_blank')}
-    style={{ marginLeft: '10px' }}
-  >
-    Drive con las fotos
-  </button>
+          onClick={() => window.open('https://drive.google.com/drive/folders/1VtAO0H7nAbPM_NxxIvt54PYEFFC8NbXL?usp=sharing', '_blank')}
+          style={{ marginLeft: '10px' }}
+        >
+          DRIVE
+        </button>
       </div>
 
       {loading && (
@@ -88,11 +112,7 @@ function App() {
 
       <div className="gallery-container">
         {images.map((url, index) => (
-         <div
-         key={index}
-         className="gallery-item"
-       >
-       
+          <div key={index} className="gallery-item">
             <img
               src={url}
               alt={`Uploaded ${index}`}

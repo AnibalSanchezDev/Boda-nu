@@ -1,0 +1,4 @@
+Para desplegar en firebase desde la raiz 
+npm run deploy
+
+Para local:
